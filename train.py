@@ -4,6 +4,7 @@ import os
 
 import numpy as np
 import torch
+import mlflow
 from torch import nn
 import torch.optim as optim
 from torch.utils.data.sampler import RandomSampler
@@ -56,8 +57,12 @@ def train(model: nn.Module,
     # idx ([batch_size]): one integer denoting the time series id;
     # labels_batch ([batch_size, train_window]): z_{1:T}.
     for i, (train_batch, idx, labels_batch) in enumerate(tqdm(train_loader)):
+        print("train batch =" + str(train_batch))
+        # print("train batch shape = " + str(train_batch).shape)
         optimizer.zero_grad()
         batch_size = train_batch.shape[0]
+        # print("train batch shape =" + str(train_batch.shape))
+        # print("labels batch shape =" + str(labels_batch.shape))
 
         train_batch = train_batch.permute(1, 0, 2).to(torch.float32).to(params.device)  # not scaled
         labels_batch = labels_batch.permute(1, 0).to(torch.float32).to(params.device)  # not scaled
@@ -80,7 +85,7 @@ def train(model: nn.Module,
         loss = loss.item() / params.train_window  # loss per timestep
         loss_epoch[i] = loss
         if i % 1000 == 0:
-            test_metrics = evaluate(model, loss_fn, test_loader, params, epoch, sample=args.sampling)
+ #           test_metrics = evaluate(model, loss_fn, test_loader, params, epoch, sample=args.sampling)
             model.train()
             logger.info(f'train_loss: {loss}')
         if i == 0:
@@ -164,6 +169,7 @@ def train_and_evaluate(model: nn.Module,
 
 if __name__ == '__main__':
 
+
     # Load the parameters from json file
     args = parser.parse_args()
     model_dir = os.path.join('experiments', args.model_name)
@@ -176,6 +182,23 @@ if __name__ == '__main__':
     params.sampling =  args.sampling
     params.model_dir = model_dir
     params.plot_dir = os.path.join(model_dir, 'figures')
+
+    mlflow.log_param("learning_rate", params.learning_rate)
+    mlflow.log_param("batch_size", params.batch_size)
+    mlflow.log_param("lstm_layers", params.lstm_layers)
+    mlflow.log_param("num_epochs", params.num_epochs)
+    mlflow.log_param("train_window", params.train_window)
+    mlflow.log_param("test_window", params.test_window)
+    mlflow.log_param("predict_start", params.predict_start)
+    mlflow.log_param("test_predict_start", params.test_predict_start)
+    mlflow.log_param("predict_steps", params.predict_steps)
+    mlflow.log_param("num_class", params.num_class)
+    mlflow.log_param("cov_dim", params.cov_dim)
+    mlflow.log_param("lstm_hidden_dim", params.lstm_hidden_dim)
+    mlflow.log_param("embedding_dim", params.embedding_dim)
+    mlflow.log_param("sample_times", params.sample_times)
+    mlflow.log_param("lstm_dropout", params.lstm_dropout)
+    mlflow.log_param("predict_batch", params.predict_batch)
 
     # create missing directories
     try:
@@ -205,6 +228,7 @@ if __name__ == '__main__':
     sampler = WeightedSampler(data_dir, args.dataset) # Use weighted sampler instead of random sampler
     train_loader = DataLoader(train_set, batch_size=params.batch_size, sampler=sampler, num_workers=4)
     test_loader = DataLoader(test_set, batch_size=params.predict_batch, sampler=RandomSampler(test_set), num_workers=4)
+
     logger.info('Loading complete.')
 
     logger.info(f'Model: \n{str(model)}')
